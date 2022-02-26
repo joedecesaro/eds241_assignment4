@@ -40,7 +40,10 @@ packages=c("stargazer",
            "broom", 
            "kableExtra", 
            "here", 
-           "huxtable")
+           "huxtable",
+           "lfe",
+           "lmtest",
+           "AER")
 
 for (i in packages) {
   if (require(i,character.only=TRUE)==FALSE) {
@@ -96,10 +99,30 @@ fs1 <- lm(formula = log_price ~ wind_m_s,
 sum_fs1 <- summary(fs1)
 ```
 
-\noindent For every 1 m/s increase in wind speed there is a `r round(fs1$coefficient[[2]], 3)` increase in the log price of fish. This is the expected sign as more wind means it would be harder for boats to get fresh fish so supply goes down.
-
+\noindent For every 1 m/s increase in wind speed there is a `r round(fs1$coefficient[[2]], 3)` increase in the log price of fish. This is the expected sign as more wind means it would be harder for boats to get fresh fish so supply goes down. **F-stat?**
 
 
 ## (c) Estimate the TSLS estimator of the price elasticity of demand for sardines using wind_m_s as an instrument for log(price_euro_kg). What is the estimated price elasticity of demand for sardines?
+```{r}
+tsls1 <- ivreg(formula = log_sold ~ log_price | wind_m_s, 
+               data = fish_data)
+
+summary(tsls1)
+```
+
+\noinent The TSLS estimator of the price elasticity of demand for sardines using wind_m_s as an instrument for log_price is `r round(tsls1$coefficients[[2]], 2)``.
 
 ## (d) Repeat the exercise in (c), but include fixed effects for each year, month, and country. [Hint: you can use the command “as.factor(country) + as.factor(year) +as.factor(month)” to the ivreg function in R]. Report the estimated price elasticity of demand and the F-statistic testing for relevant and non-weak instruments.
+
+```{r}
+tsls2 <- ivreg(formula = log_sold ~ log_price | wind_m_s + 
+                 as.factor(country) + 
+                 as.factor(year) +
+                 as.factor(month), 
+               data = fish_data)
+
+summary(tsls2)
+
+```
+
+
