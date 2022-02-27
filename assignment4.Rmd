@@ -11,54 +11,27 @@ header-includes:
   - \usepackage{float}
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
-
+``` {r setup, echo = FALSE, message = FALSE, warning = FALSE}
 # set default chunk options
 knitr::opts_chunk$set(fig.width = 4, fig.height = 3, 
                       echo = TRUE, message = FALSE, warning = FALSE)
 
-
 # load packages
-packages=c("stargazer", 
-           "here", 
-           "tidyr", 
-           "dplyr",
-           "stringr", 
-           "janitor", 
-           "cowplot", 
-           "ggplot2", 
-           "tinytex", 
-           "datasets", 
-           "tibble", 
-           "readxl", 
-           "estimatr", 
-           "car", 
-           "broom", 
-           "kableExtra", 
-           "here", 
-           "huxtable",
-           "lfe",
-           "lmtest",
-           "AER")
+packages = c("stargazer", "here", "tidyverse", "janitor", 
+           "cowplot", "tinytex", "datasets", "estimatr", "tibble", "car", 
+           "readxl", "huxtable", "AER", "knitr")
 
 for (i in packages) {
-  if (require(i,character.only=TRUE)==FALSE) {
-    install.packages(i,repos='http://cran.us.r-project.org')
+  if (require(i, character.only = TRUE) == FALSE) {
+    install.packages(i,repos = 'http://cran.us.r-project.org')
   }
   else {
-    require(i,character.only=TRUE)
+    require(i, character.only = TRUE)
   }
 }
 
-#devtools::install_github('rstudio/rmarkdown')
-options(scipen=5) # not scientific notation
-
+options(scipen = 999) # not scientific notation
 ```
-
 
 # Homework 4
 
@@ -83,46 +56,83 @@ fish_data <- fish_data %>%
 ```
 
 ```{r, message = FALSE, warning = FALSE}
-model1 <- lm(formula = log_sold ~ log_price,
+model1 <- lm_robust(formula = log_sold ~ log_price,
              data = fish_data)
-
-huxreg(summary(model1))
 ```
 
+
+```{r, message = FALSE, warning = FALSE}
+model1_table <- tidy(model1)
+model1_table %>%
+  select(term, estimate, std.error, p.value, conf.low, conf.high) %>%
+  kable()
+
+```
+\noident The estimated price elasticity of demand for sardines regression log_sold on log_price is `r round(model1_table$estimate[2], 2)`. We can say with 95% confidence that the interval [`r round(model1_table$conf.low[2], 2)`, `r round(model1_table$conf.high[2], 2)`] contains the true $\beta_1$. Because this CI does not contain -1 we can the null hypothesis that the price elasticity is equal to -1.
 
 ## (b) Like in Lecture 8 (see the IV.R script), we will use wind_m_s as an instrument for log(price_euro_kg). To begin, estimate the first-stage regression relating log(price_euro_kg) to wind_m_s. Interpret the estimated coefficient on wind speed. Does it have the expected sign? Also test for the relevance of the instrument and whether it is a “weak” instrument by reporting the proper F-statistic.
 
 ```{r}
-fs1 <- lm(formula = log_price ~ wind_m_s,
+fs1 <- lm_robust(formula = log_price ~ wind_m_s,
           data = fish_data)
 
-sum_fs1 <- summary(fs1)
+huxreg(fs1)
 ```
 
-\noindent For every 1 m/s increase in wind speed there is a `r round(fs1$coefficient[[2]], 3)` increase in the log price of fish. This is the expected sign as more wind means it would be harder for boats to get fresh fish so supply goes down. **F-stat?**
+\noindent For every 1 m/s increase in wind speed there is a `r round(fs1$coefficient[[2]], 3)` increase in the log price of fish. The positive correlation of wind speed and log_price is positive as expected. This is because as wind speed increases it means it would be harder for boats to get fresh fish so supply goes down. Wind speed will likely not affect the demand for sardines so the price increases when there is less supply but a maintained demand.
 
+```{r}
+fs1_fstat <- linearHypothesis(fs1, c("wind_m_s = 0"), white.adjust = "hc2")
+
+huxtable(fs1_fstat)
+```
+
+\noindent The proper F-statistic is `r round(fs1_fstat$Chisq[[2]], 0)` which is greater than 10, therefore it is not a weak instrument.
 
 ## (c) Estimate the TSLS estimator of the price elasticity of demand for sardines using wind_m_s as an instrument for log(price_euro_kg). What is the estimated price elasticity of demand for sardines?
-```{r}
+
+```{r, message = FALSE, warning = FALSE}
 tsls1 <- ivreg(formula = log_sold ~ log_price | wind_m_s, 
                data = fish_data)
 
-summary(tsls1)
+huxreg(tsls1)
 ```
 
-\noinent The TSLS estimator of the price elasticity of demand for sardines using wind_m_s as an instrument for log_price is `r round(tsls1$coefficients[[2]], 2)``.
+\noinent The TSLS estimated price elasticity for demand of sardines using wind_m_s as an instrument for log_price is `r round(tsls1$coefficients[[2]], 2)`.
 
 ## (d) Repeat the exercise in (c), but include fixed effects for each year, month, and country. [Hint: you can use the command “as.factor(country) + as.factor(year) +as.factor(month)” to the ivreg function in R]. Report the estimated price elasticity of demand and the F-statistic testing for relevant and non-weak instruments.
 
-```{r}
-tsls2 <- ivreg(formula = log_sold ~ log_price | wind_m_s + 
+```{r, message = FALSE, warning = FALSE}
+tsls2 <- ivreg(formula = log_sold ~ log_price + 
+                 as.factor(country) + 
+                 as.factor(year) +
+                 as.factor(month)| 
+                 wind_m_s + 
                  as.factor(country) + 
                  as.factor(year) +
                  as.factor(month), 
                data = fish_data)
 
-summary(tsls2)
+tsls2_hux <- huxreg(tsls2)
+```
 
+```{r, echo = FALSE message = FALSE, warning = FALSE}
+restack_across(tsls2_hux, 9)
 ```
 
 
+The TSLS estimated price elasticity for demand of sardines using wind_m_s as an instrument for log_price and including fixed effects for each year, month, and country is `r round(tsls2$coefficients[[2]], 2)`.
+
+```{r}
+model2 <-  lm_robust(formula = log_price ~ wind_m_s + 
+                 as.factor(country) + 
+                 as.factor(year) +
+                 as.factor(month), 
+               data = fish_data)
+
+model3_fstat <- linearHypothesis(model2, c("wind_m_s = 0"), white.adjust = "hc2")
+
+huxtable(model3_fstat)
+```
+
+\noindent The F-statistic is `r round(model3_fstat$Chisq[[2]], 0)` which is greater than 10, therefore it is not a weak instrument.
